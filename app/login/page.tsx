@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { SubmitButton } from "./submit-button";
+import handleSignup from "@/utils/supabase/handle-signup";
 
 export default function Login({
   searchParams,
@@ -36,7 +37,7 @@ export default function Login({
     const password = formData.get("password") as string;
     const supabase = createClient();
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -48,7 +49,32 @@ export default function Login({
       return redirect("/login?message=Could not authenticate user");
     }
 
+    if (data.user) {
+      handleSignup(data.user)
+    }
     return redirect("/login?message=Check email to continue sign in process");
+  };
+
+  const signInWithGoogle = async () => {
+    "use server";
+
+    const origin = headers().get("origin");
+    const supabase = createClient();
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${origin}/auth/callback`,
+      },
+    });
+
+    if (error) {
+      return redirect("/login?message=Could not authenticate with Google");
+    }
+    if (data.user) {
+      handleSignup(data.user)
+    }
+    return redirect(data.url);
   };
 
   return (
@@ -107,6 +133,13 @@ export default function Login({
           pendingText="Signing Up..."
         >
           Sign Up
+        </SubmitButton>
+        <SubmitButton
+          formAction={signInWithGoogle}
+          className="bg-blue-600 rounded-md px-4 py-2 text-white mb-2"
+          pendingText="Signing In with Google..."
+        >
+          Sign In with Google
         </SubmitButton>
         {searchParams?.message && (
           <p className="mt-4 p-4 bg-foreground/10 text-foreground text-center">
